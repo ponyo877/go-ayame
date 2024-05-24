@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"runtime"
 	"sync"
 	"time"
@@ -12,8 +11,6 @@ import (
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
 
-	"github.com/pion/rtcp"
-	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v3"
 )
 
@@ -43,8 +40,8 @@ type Connection struct {
 	// MediaStream API is not yet fully supported by pion.
 	// Only working on Linux machine
 	// Check development status of https://github.com/pion/mediadevices
-	//Stream          *msapi.MediaStream
-	//RemoteStream    *msapi.MediaStream
+	// Stream          *msapi.MediaStream
+	// RemoteStream    *msapi.MediaStream
 
 	authzMetadata   *interface{}
 	connectionState webrtc.ICEConnectionState
@@ -58,10 +55,10 @@ type Connection struct {
 
 	dataChannels map[string]*webrtc.DataChannel
 
-	onOpenHandler        func(metadata *interface{})
-	onConnectHandler     func()
-	onDisconnectHandler  func(reason string, err error)
-	onTrackPacketHandler func(track *webrtc.TrackRemote, packet *rtp.Packet)
+	onOpenHandler       func(metadata *interface{})
+	onConnectHandler    func()
+	onDisconnectHandler func(reason string, err error)
+	// onTrackPacketHandler func(track *webrtc.TrackRemote, packet *rtp.Packet)
 	onByeHandler         func()
 	onDataChannelHandler func(dc *webrtc.DataChannel)
 
@@ -100,7 +97,7 @@ func (c *Connection) Disconnect() {
 	c.onOpenHandler = func(metadata *interface{}) {}
 	c.onConnectHandler = func() {}
 	c.onDisconnectHandler = func(reason string, err error) {}
-	c.onTrackPacketHandler = func(track *webrtc.TrackRemote, packet *rtp.Packet) {}
+	// c.onTrackPacketHandler = func(track *webrtc.TrackRemote, packet *rtp.Packet) {}
 	c.onByeHandler = func() {}
 	c.onDataChannelHandler = func(dc *webrtc.DataChannel) {}
 }
@@ -130,10 +127,10 @@ func (c *Connection) CreateDataChannel(label string, options *webrtc.DataChannel
 			c.trace("datachannel OnClose")
 			delete(c.dataChannels, label)
 		})
-		dc.OnError(func(err error) {
-			c.trace("datachannel OnError: %v", err)
-			delete(c.dataChannels, label)
-		})
+		// dc.OnError(func(err error) {
+		// 	c.trace("datachannel OnError: %v", err)
+		// 	delete(c.dataChannels, label)
+		// })
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			c.trace("datachannel OnMessage")
 		})
@@ -166,11 +163,11 @@ func (c *Connection) OnDisconnect(f func(reason string, err error)) {
 }
 
 // OnTrackPacket は RTP Packet 受診時に発生するコールバック関数を設定します。
-func (c *Connection) OnTrackPacket(f func(track *webrtc.TrackRemote, packet *rtp.Packet)) {
-	c.callbackMu.Lock()
-	defer c.callbackMu.Unlock()
-	c.onTrackPacketHandler = f
-}
+// func (c *Connection) OnTrackPacket(f func(track *webrtc.TrackRemote, packet *rtp.Packet)) {
+// 	c.callbackMu.Lock()
+// 	defer c.callbackMu.Unlock()
+// 	c.onTrackPacketHandler = f
+// }
 
 // OnBye は bye イベント発生時のコールバック関数を設定します。
 func (c *Connection) OnBye(f func()) {
@@ -277,22 +274,23 @@ func (c *Connection) sendSdp(sessionDescription *webrtc.SessionDescription) {
 }
 
 func (c *Connection) createPeerConnection() error {
-	m := webrtc.MediaEngine{}
-	if c.Options.Audio.Enabled {
-		for _, codec := range c.Options.Audio.Codecs {
-			m.RegisterCodec(*codec, webrtc.RTPCodecTypeAudio)
-		}
-	}
-	if c.Options.Video.Enabled {
-		for _, codec := range c.Options.Video.Codecs {
-			m.RegisterCodec(*codec, webrtc.RTPCodecTypeVideo)
-		}
-	}
+	// m := webrtc.MediaEngine{}
+	// if c.Options.Audio.Enabled {
+	// 	for _, codec := range c.Options.Audio.Codecs {
+	// 		m.RegisterCodec(*codec, webrtc.RTPCodecTypeAudio)
+	// 	}
+	// }
+	// if c.Options.Video.Enabled {
+	// 	for _, codec := range c.Options.Video.Codecs {
+	// 		m.RegisterCodec(*codec, webrtc.RTPCodecTypeVideo)
+	// 	}
+	// }
 
 	s := webrtc.SettingEngine{}
 	// s.SetTrickle(c.Options.UseTrickeICE)
 
-	api := webrtc.NewAPI(webrtc.WithMediaEngine(&m), webrtc.WithSettingEngine(s))
+	// api := webrtc.NewAPI(webrtc.WithMediaEngine(&m), webrtc.WithSettingEngine(s))
+	api := webrtc.NewAPI(webrtc.WithSettingEngine(s))
 
 	c.trace("RTCConfiguration: %v", c.pcConfig)
 	pc, err := api.NewPeerConnection(c.pcConfig)
@@ -320,45 +318,45 @@ func (c *Connection) createPeerConnection() error {
 
 	// Set a Handler for when a new remote track starts, this Handler copies inbound RTP packets,
 	// replaces the SSRC and sends them back
-	pc.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-		// Send a PLI on an interval so that the publisher is pushing a keyframe every rtcpPLIInterval
-		// This is a temporary fix until we implement incoming RTCP events, then we would push a PLI only when a viewer requests it
-		go func() {
-			ticker := time.NewTicker(time.Second * 3)
-			for range ticker.C {
-				if c.pc == nil || c.pc.SignalingState() == webrtc.SignalingStateClosed {
-					return
-				}
+	// pc.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
+	// 	// Send a PLI on an interval so that the publisher is pushing a keyframe every rtcpPLIInterval
+	// 	// This is a temporary fix until we implement incoming RTCP events, then we would push a PLI only when a viewer requests it
+	// 	go func() {
+	// 		ticker := time.NewTicker(time.Second * 3)
+	// 		for range ticker.C {
+	// 			if c.pc == nil || c.pc.SignalingState() == webrtc.SignalingStateClosed {
+	// 				return
+	// 			}
 
-				errSend := pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: uint32(track.SSRC())}})
-				if errSend != nil {
-					c.trace("Failed to write RTCP packet: %s", errSend.Error())
-				}
-			}
-		}()
+	// 			errSend := pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: uint32(track.SSRC())}})
+	// 			if errSend != nil {
+	// 				c.trace("Failed to write RTCP packet: %s", errSend.Error())
+	// 			}
+	// 		}
+	// 	}()
 
-		c.trace("peerConnection.ontrack(): %d, codec: %s", track.PayloadType(), track.Codec().MimeType)
-		go func() {
-			for {
-				// Interceptorは
-				rtp, _, readErr := track.ReadRTP()
-				if readErr != nil {
-					if readErr == io.EOF {
-						return
-					}
-					c.trace("read RTP error %v", readErr)
-					c.Disconnect()
-					c.onDisconnectHandler("READ-RTP-ERROR", err)
-					return
-				}
-				c.onTrackPacketHandler(track, rtp)
+	// 	c.trace("peerConnection.ontrack(): %d, codec: %s", track.PayloadType(), track.Codec().MimeType)
+	// 	go func() {
+	// 		for {
+	// 			// Interceptorは
+	// 			rtp, _, readErr := track.ReadRTP()
+	// 			if readErr != nil {
+	// 				if readErr == io.EOF {
+	// 					return
+	// 				}
+	// 				c.trace("read RTP error %v", readErr)
+	// 				c.Disconnect()
+	// 				c.onDisconnectHandler("READ-RTP-ERROR", err)
+	// 				return
+	// 			}
+	// 			c.onTrackPacketHandler(track, rtp)
 
-				if c.pc == nil || c.pc.SignalingState() == webrtc.SignalingStateClosed {
-					return
-				}
-			}
-		}()
-	})
+	// 			if c.pc == nil || c.pc.SignalingState() == webrtc.SignalingStateClosed {
+	// 				return
+	// 			}
+	// 		}
+	// 	}()
+	// })
 	// Set the Handler for ICE connection state
 	// This will notify you when the peer has connected/disconnected
 	pc.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
@@ -493,9 +491,9 @@ func (c *Connection) onDataChannel(dc *webrtc.DataChannel) {
 	dc.OnClose(func() {
 		c.trace("datachannel OnClose")
 	})
-	dc.OnError(func(err error) {
-		c.trace("datachannel OnError: %v", err)
-	})
+	// dc.OnError(func(err error) {
+	// 	c.trace("datachannel OnError: %v", err)
+	// })
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 		c.trace("datachannel OnMessage")
 	})

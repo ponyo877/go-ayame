@@ -15,8 +15,8 @@ import (
 )
 
 func main() {
-	signalingURL := flag.String("url", "wss://ayame-labo.shiguredo.jp/signaling", "Specify Ayame service address")
-	roomID := flag.String("room-id", "", "specify room ID")
+	signalingURL := flag.String("url", "ws://localhost:3000/signaling", "Specify Ayame service address")
+	roomID := flag.String("room-id", "ayame-web-sdk-sample", "specify room ID")
 	signalingKey := flag.String("signaling-key", "", "specify signaling key")
 	verbose := flag.Bool("verbose", false, "enable verbose log")
 
